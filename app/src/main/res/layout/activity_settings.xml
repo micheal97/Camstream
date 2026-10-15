@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Sender"
+            android:textStyle="bold"
+            android:textSize="18sp" />
+
+        <EditText
+            android:id="@+id/etSenderLabel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Camera label"
+            android:inputType="text" />
+
+        <EditText
+            android:id="@+id/etControlPort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Control port"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etWidth"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Width"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etHeight"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Height"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etFps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="FPS"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etBitrateKbps"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Bitrate kbps"
+            android:inputType="number" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="24dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Monitor"
+            android:textStyle="bold"
+            android:textSize="18sp" />
+
+        <EditText
+            android:id="@+id/etLeftUdpPort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Left UDP port"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etRightUdpPort"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Right UDP port"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etSoftStallMs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Soft stall ms"
+            android:inputType="number" />
+
+        <EditText
+            android:id="@+id/etHardStallMs"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Hard stall ms"
+            android:inputType="number" />
+
+        <Space
+            android:layout_width="match_parent"
+            android:layout_height="24dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnDefaults"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Defaults" />
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="wrap_content" />
+
+            <Button
+                android:id="@+id/btnSave"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Save" />
+        </LinearLayout>
+
+    </LinearLayout>
+</ScrollView>
