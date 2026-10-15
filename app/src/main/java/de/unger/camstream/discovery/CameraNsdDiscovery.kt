@@ -1,5 +1,6 @@
 package de.unger.camstream.discovery
 
+
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -23,17 +24,19 @@ class CameraNsdDiscovery(
     private var multicastLock: WifiManager.MulticastLock? = null
 
     fun start() {
-        multicastLock = wifiManager.createMulticastLock("camstream-nsd").apply {
+        multicastLock = wifiManager.createMulticastLock("camstream-mdns").apply {
             setReferenceCounted(false)
             acquire()
         }
 
         val listener = object : NsdManager.DiscoveryListener {
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
-
             override fun onDiscoveryStarted(serviceType: String) {}
+
             override fun onDiscoveryStopped(serviceType: String) {}
+
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
+
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (serviceInfo.serviceType != CameraNsdPublisher.SERVICE_TYPE) return
@@ -73,11 +76,17 @@ class CameraNsdDiscovery(
 
     fun stop() {
         discoveryListener?.let {
-            try { nsdManager.stopServiceDiscovery(it) } catch (_: Exception) {}
+            try {
+                nsdManager.stopServiceDiscovery(it)
+            } catch (_: Exception) {
+            }
         }
         discoveryListener = null
 
-        try { multicastLock?.release() } catch (_: Exception) {}
+        try {
+            multicastLock?.release()
+        } catch (_: Exception) {
+        }
         multicastLock = null
     }
 }

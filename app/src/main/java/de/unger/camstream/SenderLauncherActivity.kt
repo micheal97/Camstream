@@ -50,9 +50,15 @@ class SenderLauncherActivity : AppCompatActivity() {
             }
         }
 
+        val monitor = Button(this).apply {
+            text = "Monitor"
+            setOnClickListener {
+                startActivity(Intent(this@SenderLauncherActivity, MonitorActivity::class.java))
+            }
+        }
+
         layout.addView(settings)
-        layout.addView(start)
-        layout.addView(stop)
+        layout.addView(monitor)
         layout.addView(start)
         layout.addView(stop)
         setContentView(layout)

@@ -30,6 +30,16 @@ class CameraSenderService : Service() {
     override fun onCreate() {
         super.onCreate()
 
+        val label = "LeftCam" // load from settings
+        val controlPort = 9000
+
+        nsdPublisher = CameraNsdPublisher(
+            context = this,
+            serviceName = "cam-$label",
+            port = controlPort
+        )
+        nsdPublisher.register()
+
         settingsStore = SettingsStore(this)
         val s = settingsStore.load()
 
@@ -79,15 +89,25 @@ class CameraSenderService : Service() {
                 stopSelf()
                 return START_NOT_STICKY
             }
+
             ACTION_START, null -> {}
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
-        try { nsdPublisher.unregister() } catch (_: Exception) {}
-        try { controlServer.close() } catch (_: Exception) {}
-        try { streamer.release() } catch (_: Exception) {}
+        try {
+            nsdPublisher.unregister()
+        } catch (_: Exception) {
+        }
+        try {
+            controlServer.close()
+        } catch (_: Exception) {
+        }
+        try {
+            streamer.release()
+        } catch (_: Exception) {
+        }
         super.onDestroy()
     }
 

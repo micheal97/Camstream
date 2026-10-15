@@ -1,8 +1,10 @@
 package de.unger.camstream
 
+import android.Manifest
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import de.unger.camstream.control.SenderControlClient
@@ -44,6 +46,7 @@ class MonitorActivity : AppCompatActivity() {
         rightSurface = findViewById(R.id.rightSurface)
 
         leftSurface.holder.addCallback(object : SurfaceHolder.Callback {
+            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun surfaceCreated(holder: SurfaceHolder) {
                 leftSurfaceReady = true
                 maybeStartLeft()
@@ -65,6 +68,7 @@ class MonitorActivity : AppCompatActivity() {
         })
 
         rightSurface.holder.addCallback(object : SurfaceHolder.Callback {
+            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun surfaceCreated(holder: SurfaceHolder) {
                 rightSurfaceReady = true
                 maybeStartRight()
@@ -92,6 +96,7 @@ class MonitorActivity : AppCompatActivity() {
         softStallMs = s.softStallMs
         hardStallMs = s.hardStallMs
         discovery = CameraNsdDiscovery(this, object : CameraNsdDiscovery.Callback {
+            @RequiresPermission(android.Manifest.permission.ACCESS_NETWORK_STATE)
             override fun onCameraFound(info: CameraServiceInfo) {
                 runOnUiThread {
                     when {
@@ -127,6 +132,7 @@ class MonitorActivity : AppCompatActivity() {
         discovery.start()
     }
 
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun maybeStartLeft() {
         val sender = leftSender ?: return
         if (!leftSurfaceReady || leftPlayer != null) return
@@ -150,6 +156,7 @@ class MonitorActivity : AppCompatActivity() {
         }
     }
 
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun maybeStartRight() {
         val sender = rightSender ?: return
         if (!rightSurfaceReady || rightPlayer != null) return
