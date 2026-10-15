@@ -32,8 +32,8 @@ class CameraStreamer(
     context: Context,
     private val width: Int = 640,
     private val height: Int = 480,
-    private val fps: Int = 5,
-    private val bitrate: Int = 300_000
+    private val fps: Int = 15,
+    private val bitrate: Int = 500_000
 ) {
     private val appContext = context.applicationContext
     private val cameraManager = appContext.getSystemService(CameraManager::class.java)
@@ -150,17 +150,6 @@ class CameraStreamer(
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
             setInteger(MediaFormat.KEY_FRAME_RATE, fps)
             setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 3)
-            setInteger(
-                MediaFormat.KEY_BITRATE_MODE,
-                MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR
-            )
-            try {
-                setInteger(
-                    MediaFormat.KEY_PROFILE,
-                    MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline
-                )
-            } catch (_: Exception) {
-            }
         }
 
         encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {

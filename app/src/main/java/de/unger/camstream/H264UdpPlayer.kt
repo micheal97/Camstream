@@ -81,35 +81,29 @@ class H264UdpPlayer(
         dispatcher.close()
     }
 
-    fun release() {
-        running = false // Schleife im Netzwerk-Thread stoppen
-        try {
-            socket?.close()
-            socket = null
-            decoder?.stop()
-            decoder?.release()
-            decoder = null
-        } catch (e: Exception) {
-            Log.e("H264UdpPlayer", "Fehler beim Freigeben des Players: ${e.message}")
-        }
-    }
 
     private fun createDecoder(sps: ByteArray, pps: ByteArray) {
-        decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
-            val format =
-                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
-                    setByteBuffer("csd-0", java.nio.ByteBuffer.wrap(sps))
-
-                    setByteBuffer("csd-1", java.nio.ByteBuffer.wrap(pps))
-                }
-            try {
-
-                decoder?.configure(format, surface, null, 0)
-            } catch (e: IllegalArgumentException) {
-                Log.e("MediaCodec", "Konfigurationsfehler: ${e.message}")
-                // Hier siehst du im Logcat, ob es am Format oder der Surface liegt
+        val codec = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC)
+        try {
+            val format = MediaFormat.createVideoFormat(
+                MediaFormat.MIMETYPE_VIDEO_AVC,
+                width,
+                height
+            ).apply {
+                setByteBuffer("csd-0", java.nio.ByteBuffer.wrap(sps))
+                setByteBuffer("csd-1", java.nio.ByteBuffer.wrap(pps))
             }
-            start()
+
+            codec.configure(format, surface, null, 0)
+            codec.start()
+            decoder = codec
+        } catch (t: Throwable) {
+            try {
+                codec.release()
+            } catch (_: Exception) {
+            }
+            decoder = null
+            Log.e("H264UdpPlayer", "Decoder init failed", t)
         }
     }
 
@@ -207,13 +201,10 @@ class H264UdpPlayer(
 
         val input = codec.getInputBuffer(index) ?: return
         input.clear()
-
-        val startCode = byteArrayOf(0, 0, 0, 1)
-        input.put(startCode)
         input.put(nal)
 
         val ptsUs = System.nanoTime() / 1000L
-        codec.queueInputBuffer(index, 0, startCode.size + nal.size, ptsUs, 0)
+        codec.queueInputBuffer(index, 0, nal.size, ptsUs, 0)
     }
 
     private fun drainOutput() {

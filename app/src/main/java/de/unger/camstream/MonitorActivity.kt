@@ -12,6 +12,8 @@ import de.unger.camstream.discovery.CameraNsdDiscovery
 import de.unger.camstream.discovery.CameraServiceInfo
 import de.unger.camstream.net.NetworkUtil
 import de.unger.camstream.settings.SettingsStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
 class MonitorActivity : AppCompatActivity() {
@@ -62,7 +64,7 @@ class MonitorActivity : AppCompatActivity() {
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 leftSurfaceReady = false
-                leftPlayer?.release()
+                leftPlayer?.stop()
                 leftPlayer = null
             }
         })
@@ -84,7 +86,7 @@ class MonitorActivity : AppCompatActivity() {
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 rightSurfaceReady = false
-                rightPlayer?.release()
+                rightPlayer?.stop()
                 rightPlayer = null
             }
         })
@@ -116,15 +118,17 @@ class MonitorActivity : AppCompatActivity() {
             }
 
             override fun onCameraLost(name: String) {
-                runOnUiThread {
-                    if (leftSender?.name == name) {
-                        leftSender = null
-                        leftControl = null
-                    }
-                    if (rightSender?.name == name) {
-                        rightSender = null
-                        rightControl = null
-                    }
+                if (leftSender?.name == name) {
+                    leftPlayer?.stop()
+                    leftPlayer = null
+                    leftSender = null
+                    leftControl = null
+                }
+                if (rightSender?.name == name) {
+                    rightPlayer?.stop()
+                    rightPlayer = null
+                    rightSender = null
+                    rightControl = null
                 }
             }
         })
@@ -183,11 +187,10 @@ class MonitorActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         discovery.stop()
-
         leftPlayer?.stop()
         rightPlayer?.stop()
 
-        lifecycleScope.launch {
+        CoroutineScope(Dispatchers.IO).launch {
             try {
                 leftControl?.stopStream()
             } catch (_: Exception) {

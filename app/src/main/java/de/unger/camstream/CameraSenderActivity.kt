@@ -2,22 +2,29 @@ package de.unger.camstream
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.hardware.camera2.*
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraMetadata
+import android.hardware.camera2.CaptureRequest
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
-import android.media.MediaRecorder
-import android.os.*
+import android.os.Bundle
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.Range
-import android.util.Size
 import android.view.View
 import android.view.WindowManager
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
-import kotlinx.coroutines.*
-import java.nio.ByteBuffer
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class CameraSenderActivity : AppCompatActivity() {
 
@@ -26,8 +33,8 @@ class CameraSenderActivity : AppCompatActivity() {
 
     private val width = 640
     private val height = 480
-    private val fps = 5
-    private val bitrate = 300_000
+    private val fps = 15
+    private val bitrate = 500_000
 
     private lateinit var cameraManager: CameraManager
     private lateinit var cameraThread: HandlerThread
@@ -90,31 +97,51 @@ class CameraSenderActivity : AppCompatActivity() {
     private fun stopPipeline() {
         drainJob?.cancel()
 
-        try { captureSession?.stopRepeating() } catch (_: Exception) {}
-        try { captureSession?.close() } catch (_: Exception) {}
+        try {
+            captureSession?.stopRepeating()
+        } catch (_: Exception) {
+        }
+        try {
+            captureSession?.close()
+        } catch (_: Exception) {
+        }
         captureSession = null
 
-        try { cameraDevice?.close() } catch (_: Exception) {}
+        try {
+            cameraDevice?.close()
+        } catch (_: Exception) {
+        }
         cameraDevice = null
 
-        try { encoder?.stop() } catch (_: Exception) {}
-        try { encoder?.release() } catch (_: Exception) {}
+        try {
+            encoder?.stop()
+        } catch (_: Exception) {
+        }
+        try {
+            encoder?.release()
+        } catch (_: Exception) {
+        }
         encoder = null
         encoderSurface = null
 
-        try { packetizer?.close() } catch (_: Exception) {}
+        try {
+            packetizer?.close()
+        } catch (_: Exception) {
+        }
         packetizer = null
     }
 
     private fun startEncoder() {
-        val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
-            setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-            setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-            setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-            setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 3)
-            setInteger(MediaFormat.KEY_BITRATE_MODE, MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR)
-            setInteger(MediaFormat.KEY_PROFILE, MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline)
-        }
+        val format =
+            MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
+                setInteger(
+                    MediaFormat.KEY_COLOR_FORMAT,
+                    MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
+                )
+                setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
+                setInteger(MediaFormat.KEY_FRAME_RATE, fps)
+                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 3)
+            }
 
         encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
             configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
@@ -165,12 +192,18 @@ class CameraSenderActivity : AppCompatActivity() {
 
                         set(CaptureRequest.CONTROL_MODE, CameraMetadata.CONTROL_MODE_AUTO)
                         set(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, Range(fps, fps))
-                        set(CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
-                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF)
-                        set(CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
-                            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF)
-                        set(CaptureRequest.NOISE_REDUCTION_MODE,
-                            CaptureRequest.NOISE_REDUCTION_MODE_FAST)
+                        set(
+                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE,
+                            CaptureRequest.CONTROL_VIDEO_STABILIZATION_MODE_OFF
+                        )
+                        set(
+                            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE,
+                            CaptureRequest.LENS_OPTICAL_STABILIZATION_MODE_OFF
+                        )
+                        set(
+                            CaptureRequest.NOISE_REDUCTION_MODE,
+                            CaptureRequest.NOISE_REDUCTION_MODE_FAST
+                        )
                         set(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_OFF)
                         set(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_FAST)
                         set(CaptureRequest.FLASH_MODE, CaptureRequest.FLASH_MODE_OFF)
@@ -215,7 +248,8 @@ class CameraSenderActivity : AppCompatActivity() {
                                 out.get(frame)
 
                                 val nals = H264CodecUtil.splitAccessUnit(frame)
-                                val keyFrame = (info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0
+                                val keyFrame =
+                                    (info.flags and MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0
                                 rtp.sendAccessUnit(nals, keyFrame)
                             }
                         }
