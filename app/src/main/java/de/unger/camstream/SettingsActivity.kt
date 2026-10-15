@@ -1,11 +1,10 @@
-package de.unger.camstreampackage
+package de.unger.camstream
 
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import de.unger.camstream.R
 import de.unger.camstream.settings.AppSettings
 import de.unger.camstream.settings.SettingsStore
 

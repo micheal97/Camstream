@@ -1,4 +1,4 @@
-package com.example.camstream
+package de.unger.camstream
 
 import android.Manifest
 import android.content.Intent
@@ -10,9 +10,7 @@ import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.core.content.PermissionChecker
 import de.unger.camstream.sender.CameraSenderService
-import de.unger.camstreampackage.SettingsActivity
 
 class SenderLauncherActivity : AppCompatActivity() {
 

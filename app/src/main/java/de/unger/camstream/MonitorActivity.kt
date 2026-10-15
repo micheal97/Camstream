@@ -1,12 +1,10 @@
-package de.unger.camstreampackage
+package de.unger.camstream
 
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
-import de.unger.camstream.H264UdpPlayer
-import de.unger.camstream.R
 import de.unger.camstream.control.SenderControlClient
 import de.unger.camstream.discovery.CameraNsdDiscovery
 import de.unger.camstream.discovery.CameraServiceInfo
@@ -50,7 +48,15 @@ class MonitorActivity : AppCompatActivity() {
                 leftSurfaceReady = true
                 maybeStartLeft()
             }
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+
+            override fun surfaceChanged(
+                holder: SurfaceHolder,
+                format: Int,
+                width: Int,
+                height: Int
+            ) {
+            }
+
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 leftSurfaceReady = false
                 leftPlayer?.stop()
@@ -63,7 +69,15 @@ class MonitorActivity : AppCompatActivity() {
                 rightSurfaceReady = true
                 maybeStartRight()
             }
-            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+
+            override fun surfaceChanged(
+                holder: SurfaceHolder,
+                format: Int,
+                width: Int,
+                height: Int
+            ) {
+            }
+
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 rightSurfaceReady = false
                 rightPlayer?.stop()
@@ -86,6 +100,7 @@ class MonitorActivity : AppCompatActivity() {
                             leftControl = SenderControlClient(info.host, info.port)
                             maybeStartLeft()
                         }
+
                         rightSender == null && info.name != leftSender?.name -> {
                             rightSender = info
                             rightControl = SenderControlClient(info.host, info.port)
@@ -166,8 +181,14 @@ class MonitorActivity : AppCompatActivity() {
         rightPlayer?.stop()
 
         lifecycleScope.launch {
-            try { leftControl?.stopStream() } catch (_: Exception) {}
-            try { rightControl?.stopStream() } catch (_: Exception) {}
+            try {
+                leftControl?.stopStream()
+            } catch (_: Exception) {
+            }
+            try {
+                rightControl?.stopStream()
+            } catch (_: Exception) {
+            }
         }
 
         super.onDestroy()

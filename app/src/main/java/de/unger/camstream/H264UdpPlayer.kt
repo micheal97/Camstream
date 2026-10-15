@@ -1,9 +1,18 @@
 package de.unger.camstream
+
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.os.SystemClock
 import android.view.Surface
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.SocketTimeoutException
@@ -58,7 +67,10 @@ class H264UdpPlayer(
         receiveJob?.cancel()
         watchdogJob?.cancel()
 
-        try { socket?.close() } catch (_: Exception) {}
+        try {
+            socket?.close()
+        } catch (_: Exception) {
+        }
         socket = null
 
         releaseDecoder()
@@ -69,15 +81,22 @@ class H264UdpPlayer(
 
     private fun createDecoder() {
         decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
-            val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
+            val format =
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
             configure(format, surface, null, 0)
             start()
         }
     }
 
     private fun releaseDecoder() {
-        try { decoder?.stop() } catch (_: Exception) {}
-        try { decoder?.release() } catch (_: Exception) {}
+        try {
+            decoder?.stop()
+        } catch (_: Exception) {
+        }
+        try {
+            decoder?.release()
+        } catch (_: Exception) {
+        }
         decoder = null
     }
 
@@ -96,7 +115,7 @@ class H264UdpPlayer(
     private suspend fun receiveLoop() {
         val buf = ByteArray(1500)
 
-        while (running && isActive) {
+        while (running && currentCoroutineContext().isActive) {
             try {
                 val packet = DatagramPacket(buf, buf.size)
                 socket?.receive(packet) ?: break
@@ -117,7 +136,7 @@ class H264UdpPlayer(
     }
 
     private suspend fun watchdogLoop() {
-        while (running && isActive) {
+        while (running && currentCoroutineContext().isActive) {
             delay(1000)
 
             val now = SystemClock.elapsedRealtime()
