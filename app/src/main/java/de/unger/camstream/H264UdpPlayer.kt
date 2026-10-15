@@ -3,6 +3,7 @@ package de.unger.camstream
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.os.SystemClock
+import android.util.Log
 import android.view.Surface
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -13,6 +14,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.net.BindException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.SocketTimeoutException
@@ -51,7 +53,7 @@ class H264UdpPlayer(
         if (running) return
         running = true
 
-        createDecoder()
+
         openSocket()
 
         lastPacketAtMs = SystemClock.elapsedRealtime()
@@ -79,11 +81,34 @@ class H264UdpPlayer(
         dispatcher.close()
     }
 
-    private fun createDecoder() {
+    fun release() {
+        running = false // Schleife im Netzwerk-Thread stoppen
+        try {
+            socket?.close()
+            socket = null
+            decoder?.stop()
+            decoder?.release()
+            decoder = null
+        } catch (e: Exception) {
+            Log.e("H264UdpPlayer", "Fehler beim Freigeben des Players: ${e.message}")
+        }
+    }
+
+    private fun createDecoder(sps: ByteArray, pps: ByteArray) {
         decoder = MediaCodec.createDecoderByType(MediaFormat.MIMETYPE_VIDEO_AVC).apply {
             val format =
-                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height)
-            configure(format, surface, null, 0)
+                MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, width, height).apply {
+                    setByteBuffer("csd-0", java.nio.ByteBuffer.wrap(sps))
+
+                    setByteBuffer("csd-1", java.nio.ByteBuffer.wrap(pps))
+                }
+            try {
+
+                decoder?.configure(format, surface, null, 0)
+            } catch (e: IllegalArgumentException) {
+                Log.e("MediaCodec", "Konfigurationsfehler: ${e.message}")
+                // Hier siehst du im Logcat, ob es am Format oder der Surface liegt
+            }
             start()
         }
     }
@@ -103,12 +128,23 @@ class H264UdpPlayer(
     private fun recreateDecoder() {
         releaseDecoder()
         depacketizer.reset()
-        createDecoder()
     }
 
     private fun openSocket() {
-        socket = DatagramSocket(port).apply {
-            soTimeout = 1000
+        try {
+            // Falls aus irgendeinem Grund noch ein alter Socket offen ist -> schließen!
+            socket?.close()
+
+            socket = DatagramSocket(port).apply {
+                soTimeout = 1000
+            }
+        } catch (e: BindException) {
+            Log.e(
+                "H264UdpPlayer",
+                "Port $port wird bereits verwendet! Stream kann nicht gestartet werden.",
+                e
+            )
+            // Hier eventuell einen Callback an die Activity feuern, um es später erneut zu versuchen
         }
     }
 
@@ -119,13 +155,23 @@ class H264UdpPlayer(
             try {
                 val packet = DatagramPacket(buf, buf.size)
                 socket?.receive(packet) ?: break
-
                 lastPacketAtMs = SystemClock.elapsedRealtime()
 
                 val nals = depacketizer.push(packet.data, packet.length)
-                for (nal in nals) {
-                    queueNal(nal)
-                    drainOutput()
+
+                // 2. Prüfe, ob SPS/PPS JETZT im Live-Stream angekommen sind
+                if (decoder == null && depacketizer.sps != null && depacketizer.pps != null) {
+                    // Decoder erst genau hier erstellen, wenn die Daten da sind!
+
+                    createDecoder(depacketizer.sps!!, depacketizer.pps!!)
+                }
+
+                // 3. Wenn der Decoder läuft, füttere ihn mit den Frames
+                if (decoder != null) {
+                    for (nal in nals) {
+                        queueNal(nal)
+                        drainOutput()
+                    }
                 }
             } catch (_: SocketTimeoutException) {
                 // allow watchdog to decide

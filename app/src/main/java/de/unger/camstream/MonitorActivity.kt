@@ -62,7 +62,7 @@ class MonitorActivity : AppCompatActivity() {
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 leftSurfaceReady = false
-                leftPlayer?.stop()
+                leftPlayer?.release()
                 leftPlayer = null
             }
         })
@@ -84,7 +84,7 @@ class MonitorActivity : AppCompatActivity() {
 
             override fun surfaceDestroyed(holder: SurfaceHolder) {
                 rightSurfaceReady = false
-                rightPlayer?.stop()
+                rightPlayer?.release()
                 rightPlayer = null
             }
         })
@@ -164,15 +164,15 @@ class MonitorActivity : AppCompatActivity() {
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
         val control = rightControl ?: return
         rightPlayer = H264UdpPlayer(
-            surface = leftSurface.holder.surface,
-            port = tabletLeftPort,
+            surface = rightSurface.holder.surface,
+            port = tabletRightPort,
             stallTimeoutMs = softStallMs,
             hardResetTimeoutMs = hardStallMs,
             onSoftStall = {
                 control.requestKeyframe()
             },
             onHardStall = {
-                control.startStream(tabletIp, tabletLeftPort)
+                control.startStream(tabletIp, tabletRightPort)
             }
         ).also { it.start() }
 

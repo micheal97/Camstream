@@ -1,5 +1,6 @@
 package de.unger.camstream.sender
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -8,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import de.unger.camstream.settings.SettingsStore
 import java.util.UUID
@@ -30,16 +32,6 @@ class CameraSenderService : Service() {
     override fun onCreate() {
         super.onCreate()
 
-        val label = "LeftCam" // load from settings
-        val controlPort = 9000
-
-        nsdPublisher = CameraNsdPublisher(
-            context = this,
-            serviceName = "cam-$label",
-            port = controlPort
-        )
-        nsdPublisher.register()
-
         settingsStore = SettingsStore(this)
         val s = settingsStore.load()
 
@@ -55,6 +47,7 @@ class CameraSenderService : Service() {
         )
 
         controlServer = SenderControlServer(s.controlPort, object : SenderControlServer.Callback {
+            @RequiresPermission(Manifest.permission.CAMERA)
             override fun onStartStream(targetHost: String, targetPort: Int) {
                 streamer.start(targetHost, targetPort)
                 updateNotification("Streaming to $targetHost:$targetPort")

@@ -1,7 +1,13 @@
 package de.unger.camstream.sender
 
+import android.Manifest
 import android.content.Context
-import android.hardware.camera2.*
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraDevice
+import android.hardware.camera2.CameraManager
+import android.hardware.camera2.CameraMetadata
+import android.hardware.camera2.CaptureRequest
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
 import android.media.MediaFormat
@@ -10,10 +16,16 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.util.Range
 import android.view.Surface
-import androidx.core.content.ContextCompat
+import androidx.annotation.RequiresPermission
 import de.unger.camstream.H264CodecUtil
 import de.unger.camstream.H264RtpPacketizer
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
 class CameraStreamer(
@@ -45,6 +57,7 @@ class CameraStreamer(
 
     private val running = AtomicBoolean(false)
 
+    @androidx.annotation.RequiresPermission(android.Manifest.permission.CAMERA)
     fun start(host: String, port: Int) {
         synchronized(this) {
             val alreadySameTarget = running.get() && targetHost == host && targetPort == port
@@ -90,19 +103,37 @@ class CameraStreamer(
         drainJob?.cancel()
         drainJob = null
 
-        try { captureSession?.stopRepeating() } catch (_: Exception) {}
-        try { captureSession?.close() } catch (_: Exception) {}
+        try {
+            captureSession?.stopRepeating()
+        } catch (_: Exception) {
+        }
+        try {
+            captureSession?.close()
+        } catch (_: Exception) {
+        }
         captureSession = null
 
-        try { cameraDevice?.close() } catch (_: Exception) {}
+        try {
+            cameraDevice?.close()
+        } catch (_: Exception) {
+        }
         cameraDevice = null
 
-        try { encoder?.stop() } catch (_: Exception) {}
-        try { encoder?.release() } catch (_: Exception) {}
+        try {
+            encoder?.stop()
+        } catch (_: Exception) {
+        }
+        try {
+            encoder?.release()
+        } catch (_: Exception) {
+        }
         encoder = null
         encoderSurface = null
 
-        try { packetizer?.close() } catch (_: Exception) {}
+        try {
+            packetizer?.close()
+        } catch (_: Exception) {
+        }
         packetizer = null
     }
 
@@ -139,6 +170,7 @@ class CameraStreamer(
         }
     }
 
+    @RequiresPermission(Manifest.permission.CAMERA)
     private fun openBackCamera() {
         val cameraId = cameraManager.cameraIdList.firstOrNull { id ->
             val chars = cameraManager.getCameraCharacteristics(id)
@@ -154,12 +186,18 @@ class CameraStreamer(
                 }
 
                 override fun onDisconnected(camera: CameraDevice) {
-                    try { camera.close() } catch (_: Exception) {}
+                    try {
+                        camera.close()
+                    } catch (_: Exception) {
+                    }
                     cameraDevice = null
                 }
 
                 override fun onError(camera: CameraDevice, error: Int) {
-                    try { camera.close() } catch (_: Exception) {}
+                    try {
+                        camera.close()
+                    } catch (_: Exception) {
+                    }
                     cameraDevice = null
                 }
             },

@@ -5,9 +5,30 @@ import java.io.ByteArrayOutputStream
 class H264RtpDepacketizer {
 
     private var fuBuffer: ByteArrayOutputStream? = null
+
+    // HIER NEU: Speicher für die Konfigurationsdaten
+    var sps: ByteArray? = null
+        private set
+    var pps: ByteArray? = null
+        private set
+
     fun reset() {
         fuBuffer = null
+        sps = null
+        pps = null
     }
+
+    // Hilfsfunktion: Fügt den Annex-B Startcode (00 00 00 01) vor ein NAL-Paket
+    private fun prefixWithStartCode(nal: ByteArray): ByteArray {
+        val result = ByteArray(4 + nal.size)
+        result[0] = 0x00
+        result[1] = 0x00
+        result[2] = 0x00
+        result[3] = 0x01
+        System.arraycopy(nal, 0, result, 4, nal.size)
+        return result
+    }
+
     fun push(packet: ByteArray, length: Int): List<ByteArray> {
         if (length < 12) return emptyList()
 
@@ -34,7 +55,19 @@ class H264RtpDepacketizer {
         val nalType = payload[0].toInt() and 0x1F
 
         return when {
-            nalType in 1..23 -> listOf(payload) // single NAL unit
+            // HIER ERWEITERT: SPS (7) und PPS (8) abfangen
+            nalType == 7 -> {
+                sps = prefixWithStartCode(payload)
+                emptyList() // Braucht nicht decodiert zu werden, ist Config!
+            }
+
+            nalType == 8 -> {
+                pps = prefixWithStartCode(payload)
+                emptyList() // Ist Config!
+            }
+
+            // Single NAL Einzelframes (z.B. Typ 1 oder Typ 5 IDR-Slices)
+            nalType in 1..23 -> listOf(prefixWithStartCode(payload))
 
             nalType == 28 -> handleFuA(payload)
 
@@ -69,7 +102,8 @@ class H264RtpDepacketizer {
         return if (end) {
             val nal = buf.toByteArray()
             fuBuffer = null
-            listOf(nal)
+            // HIER ERWEITERT: Auch zusammengesetzte FU-As brauchen den Startcode!
+            listOf(prefixWithStartCode(nal))
         } else {
             emptyList()
         }
