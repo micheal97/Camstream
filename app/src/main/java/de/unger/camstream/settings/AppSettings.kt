@@ -8,7 +8,7 @@ data class AppSettings(
 
     val width: Int = 640,
     val height: Int = 480,
-    val fps: Int = 5,
+    val fps: Int = 15,
     val bitrateKbps: Int = 300,
 
     val leftUdpPort: Int = 5004,

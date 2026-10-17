@@ -4,12 +4,11 @@ import java.io.Closeable
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetSocketAddress
-import kotlin.experimental.or
 
 class H264RtpPacketizer(
     host: String,
     port: Int,
-    private val fps: Int = 5,
+    private val fps: Int = 15,
     private val mtu: Int = 1200
 ) : Closeable {
 
