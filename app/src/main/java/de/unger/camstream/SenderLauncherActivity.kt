@@ -10,6 +10,7 @@ import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import de.unger.camstream.sender.CameraSenderService
 
 class SenderLauncherActivity : AppCompatActivity() {
@@ -88,9 +89,21 @@ class SenderLauncherActivity : AppCompatActivity() {
     }
 
     private fun startSenderService() {
+        requestIgnoreBatteryOptimizations()
         val intent = Intent(this, CameraSenderService::class.java)
             .setAction(CameraSenderService.ACTION_START)
 
         ContextCompat.startForegroundService(this, intent)
+    }
+
+    private fun requestIgnoreBatteryOptimizations() {
+        val pm = getSystemService(android.os.PowerManager::class.java)
+        if (!pm.isIgnoringBatteryOptimizations(packageName)) {
+            val intent = Intent(
+                android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                "package:$packageName".toUri()
+            )
+            startActivity(intent)
+        }
     }
 }

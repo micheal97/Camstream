@@ -56,8 +56,30 @@ class CameraStreamer(
     private var targetPort: Int? = null
 
     private val running = AtomicBoolean(false)
+    private var retryScheduled = false
 
-    @androidx.annotation.RequiresPermission(android.Manifest.permission.CAMERA)
+    @RequiresPermission(Manifest.permission.CAMERA)
+    private fun scheduleCameraRetry() {
+        synchronized(this) {
+            if (!running.get() || retryScheduled) return
+            retryScheduled = true
+        }
+
+        cameraHandler.postDelayed({
+            synchronized(this) {
+                retryScheduled = false
+                if (!running.get()) return@postDelayed
+                try {
+                    cameraDevice?.close()
+                } catch (_: Exception) {
+                }
+                cameraDevice = null
+                openBackCamera()
+            }
+        }, 1500)
+    }
+
+    @RequiresPermission(Manifest.permission.CAMERA)
     fun start(host: String, port: Int) {
         synchronized(this) {
             val alreadySameTarget = running.get() && targetHost == host && targetPort == port
@@ -67,6 +89,7 @@ class CameraStreamer(
 
             targetHost = host
             targetPort = port
+            retryScheduled = false
 
             packetizer = H264RtpPacketizer(host, port, fps = fps)
             startEncoder()
@@ -99,6 +122,7 @@ class CameraStreamer(
     }
 
     private fun stopLocked() {
+        retryScheduled = false
         running.set(false)
         drainJob?.cancel()
         drainJob = null
@@ -170,24 +194,29 @@ class CameraStreamer(
             cameraId,
             object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {
+                    retryScheduled = false
                     cameraDevice = camera
                     createSession(camera)
                 }
 
+                @RequiresPermission(Manifest.permission.CAMERA)
                 override fun onDisconnected(camera: CameraDevice) {
                     try {
                         camera.close()
                     } catch (_: Exception) {
                     }
                     cameraDevice = null
+                    scheduleCameraRetry()
                 }
 
+                @RequiresPermission(Manifest.permission.CAMERA)
                 override fun onError(camera: CameraDevice, error: Int) {
                     try {
                         camera.close()
                     } catch (_: Exception) {
                     }
                     cameraDevice = null
+                    scheduleCameraRetry()
                 }
             },
             cameraHandler
@@ -228,7 +257,9 @@ class CameraStreamer(
                     session.setRepeatingRequest(request, null, cameraHandler)
                 }
 
+                @RequiresPermission(Manifest.permission.CAMERA)
                 override fun onConfigureFailed(session: CameraCaptureSession) {
+                    scheduleCameraRetry()
                 }
             },
             cameraHandler
