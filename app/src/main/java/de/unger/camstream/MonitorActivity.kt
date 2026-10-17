@@ -1,13 +1,16 @@
 package de.unger.camstream
 
+import android.Manifest
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import de.unger.camstream.control.SenderControlClient
 import de.unger.camstream.discovery.CameraNsdDiscovery
 import de.unger.camstream.discovery.CameraServiceInfo
+import de.unger.camstream.net.AppNetworkWatcher
 import de.unger.camstream.net.NetworkUtil
 import de.unger.camstream.settings.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -33,12 +36,16 @@ class MonitorActivity : AppCompatActivity() {
 
     private lateinit var discovery: CameraNsdDiscovery
     private lateinit var settingsStore: SettingsStore
+    private lateinit var networkWatcher: AppNetworkWatcher
 
     private var tabletLeftPort: Int = 5004
     private var tabletRightPort: Int = 5006
     private var softStallMs: Long = 3000L
     private var hardStallMs: Long = 8000L
 
+    private var monitorStarted = false
+
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_monitor)
@@ -47,6 +54,7 @@ class MonitorActivity : AppCompatActivity() {
         rightSurface = findViewById(R.id.rightSurface)
 
         leftSurface.holder.addCallback(object : SurfaceHolder.Callback {
+            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun surfaceCreated(holder: SurfaceHolder) {
                 leftSurfaceReady = true
                 maybeStartLeft()
@@ -68,6 +76,7 @@ class MonitorActivity : AppCompatActivity() {
         })
 
         rightSurface.holder.addCallback(object : SurfaceHolder.Callback {
+            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun surfaceCreated(holder: SurfaceHolder) {
                 rightSurfaceReady = true
                 maybeStartRight()
@@ -96,6 +105,7 @@ class MonitorActivity : AppCompatActivity() {
         hardStallMs = s.hardStallMs
 
         discovery = CameraNsdDiscovery(this, object : CameraNsdDiscovery.Callback {
+            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun onCameraFound(info: CameraServiceInfo) {
                 runOnUiThread {
                     when {
@@ -132,23 +142,59 @@ class MonitorActivity : AppCompatActivity() {
                 }
             }
         })
+
+        networkWatcher = AppNetworkWatcher(this, object : AppNetworkWatcher.Callback {
+            override fun onNetworkLost() {
+                runOnUiThread {
+                    handleNetworkLost()
+                }
+            }
+
+            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
+            override fun onNetworkChanged() {
+                runOnUiThread {
+                    handleNetworkChanged()
+                }
+            }
+        })
     }
 
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     override fun onStart() {
         super.onStart()
+        monitorStarted = true
+        networkWatcher.start()
+        restartDiscoveryAndReconnect()
+    }
+
+    override fun onStop() {
+        monitorStarted = false
+        networkWatcher.stop()
+        stopMonitoringSession(clearSenders = false)
+        super.onStop()
+    }
+
+    private fun handleNetworkLost() {
+        stopMonitoringSession(clearSenders = true)
+    }
+
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
+    private fun handleNetworkChanged() {
+        if (!monitorStarted) return
+        restartDiscoveryAndReconnect()
+    }
+
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
+    private fun restartDiscoveryAndReconnect() {
+        stopMonitoringSession(clearSenders = true)
         discovery.start()
 
-        // If we came back from Home and still know the cameras, try again immediately.
+        // If discovery callback already knows a sender quickly, these will start.
         maybeStartLeft()
         maybeStartRight()
     }
 
-    override fun onStop() {
-        stopMonitoringSession()
-        super.onStop()
-    }
-
-    private fun stopMonitoringSession() {
+    private fun stopMonitoringSession(clearSenders: Boolean) {
         discovery.stop()
 
         val left = leftControl
@@ -163,9 +209,18 @@ class MonitorActivity : AppCompatActivity() {
             runCatching { left?.stopStream() }
             runCatching { right?.stopStream() }
         }
+
+        if (clearSenders) {
+            leftSender = null
+            rightSender = null
+            leftControl = null
+            rightControl = null
+        }
     }
 
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun maybeStartLeft() {
+        if (!monitorStarted) return
         if (!leftSurfaceReady || leftPlayer != null) return
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
@@ -189,7 +244,9 @@ class MonitorActivity : AppCompatActivity() {
         }
     }
 
+    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun maybeStartRight() {
+        if (!monitorStarted) return
         if (!rightSurfaceReady || rightPlayer != null) return
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return

@@ -12,7 +12,6 @@ import android.os.IBinder
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import de.unger.camstream.settings.SettingsStore
-import java.util.UUID
 
 class CameraSenderService : Service() {
 
@@ -28,7 +27,8 @@ class CameraSenderService : Service() {
     private lateinit var controlServer: SenderControlServer
     private lateinit var nsdPublisher: CameraNsdPublisher
     private lateinit var settingsStore: SettingsStore
-
+    private lateinit var networkWatcher: de.unger.camstream.net.AppNetworkWatcher
+    private lateinit var publishedServiceName: String
     override fun onCreate() {
         super.onCreate()
 
@@ -68,12 +68,50 @@ class CameraSenderService : Service() {
             .ifBlank { Build.MODEL ?: "android-camera" }
             .replace(' ', '-')
 
+        publishedServiceName = "cam-$safeLabel"
+
+        registerPublisher()
+
+        networkWatcher = de.unger.camstream.net.AppNetworkWatcher(
+            this,
+            object : de.unger.camstream.net.AppNetworkWatcher.Callback {
+                override fun onNetworkLost() {
+                    try {
+                        streamer.stop()
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        nsdPublisher.unregister()
+                    } catch (_: Exception) {
+                    }
+                    updateNotification("Network lost - waiting...")
+                }
+
+                override fun onNetworkChanged() {
+                    reRegisterPublisher()
+                    updateNotification("Idle - waiting for tablet")
+                }
+            })
+        networkWatcher.start()
+    }
+
+    private fun registerPublisher() {
+        val s = settingsStore.load()
+
         nsdPublisher = CameraNsdPublisher(
             context = this,
-            serviceName = "cam-$safeLabel-${UUID.randomUUID().toString().take(4)}",
+            serviceName = publishedServiceName,
             port = s.controlPort
         )
         nsdPublisher.register()
+    }
+
+    private fun reRegisterPublisher() {
+        try {
+            nsdPublisher.unregister()
+        } catch (_: Exception) {
+        }
+        registerPublisher()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -89,6 +127,10 @@ class CameraSenderService : Service() {
     }
 
     override fun onDestroy() {
+        try {
+            networkWatcher.stop()
+        } catch (_: Exception) {
+        }
         try {
             nsdPublisher.unregister()
         } catch (_: Exception) {
