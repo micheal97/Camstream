@@ -160,6 +160,7 @@ class MonitorActivity : AppCompatActivity() {
                 }
             }
         })
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
