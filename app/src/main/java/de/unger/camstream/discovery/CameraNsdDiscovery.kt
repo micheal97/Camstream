@@ -1,6 +1,5 @@
 package de.unger.camstream.discovery
 
-
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -22,8 +21,12 @@ class CameraNsdDiscovery(
 
     private var discoveryListener: NsdManager.DiscoveryListener? = null
     private var multicastLock: WifiManager.MulticastLock? = null
+    private var started = false
 
     fun start() {
+        if (started) return
+        started = true
+
         multicastLock = wifiManager.createMulticastLock("camstream-mdns").apply {
             setReferenceCounted(false)
             acquire()
@@ -32,11 +35,25 @@ class CameraNsdDiscovery(
         val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(serviceType: String) {}
 
-            override fun onDiscoveryStopped(serviceType: String) {}
+            override fun onDiscoveryStopped(serviceType: String) {
+                started = false
+            }
 
-            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {}
+            override fun onStartDiscoveryFailed(serviceType: String, errorCode: Int) {
+                started = false
+                try {
+                    nsdManager.stopServiceDiscovery(this)
+                } catch (_: Exception) {
+                }
+            }
 
-            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {}
+            override fun onStopDiscoveryFailed(serviceType: String, errorCode: Int) {
+                started = false
+                try {
+                    nsdManager.stopServiceDiscovery(this)
+                } catch (_: Exception) {
+                }
+            }
 
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (serviceInfo.serviceType != CameraNsdPublisher.SERVICE_TYPE) return
@@ -67,21 +84,34 @@ class CameraNsdDiscovery(
         }
 
         discoveryListener = listener
-        nsdManager.discoverServices(
-            CameraNsdPublisher.SERVICE_TYPE,
-            NsdManager.PROTOCOL_DNS_SD,
-            listener
-        )
+
+        try {
+            nsdManager.discoverServices(
+                CameraNsdPublisher.SERVICE_TYPE,
+                NsdManager.PROTOCOL_DNS_SD,
+                listener
+            )
+        } catch (_: Exception) {
+            started = false
+            try {
+                multicastLock?.release()
+            } catch (_: Exception) {
+            }
+            multicastLock = null
+        }
     }
 
     fun stop() {
-        discoveryListener?.let {
+        val listener = discoveryListener
+        discoveryListener = null
+        started = false
+
+        if (listener != null) {
             try {
-                nsdManager.stopServiceDiscovery(it)
+                nsdManager.stopServiceDiscovery(listener)
             } catch (_: Exception) {
             }
         }
-        discoveryListener = null
 
         try {
             multicastLock?.release()

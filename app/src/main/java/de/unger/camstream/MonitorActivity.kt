@@ -1,10 +1,8 @@
 package de.unger.camstream
 
-import android.Manifest
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
-import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import de.unger.camstream.control.SenderControlClient
@@ -35,6 +33,7 @@ class MonitorActivity : AppCompatActivity() {
 
     private lateinit var discovery: CameraNsdDiscovery
     private lateinit var settingsStore: SettingsStore
+
     private var tabletLeftPort: Int = 5004
     private var tabletRightPort: Int = 5006
     private var softStallMs: Long = 3000L
@@ -48,7 +47,6 @@ class MonitorActivity : AppCompatActivity() {
         rightSurface = findViewById(R.id.rightSurface)
 
         leftSurface.holder.addCallback(object : SurfaceHolder.Callback {
-            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun surfaceCreated(holder: SurfaceHolder) {
                 leftSurfaceReady = true
                 maybeStartLeft()
@@ -70,7 +68,6 @@ class MonitorActivity : AppCompatActivity() {
         })
 
         rightSurface.holder.addCallback(object : SurfaceHolder.Callback {
-            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun surfaceCreated(holder: SurfaceHolder) {
                 rightSurfaceReady = true
                 maybeStartRight()
@@ -90,15 +87,15 @@ class MonitorActivity : AppCompatActivity() {
                 rightPlayer = null
             }
         })
+
         settingsStore = SettingsStore(this)
         val s = settingsStore.load()
-
         tabletLeftPort = s.leftUdpPort
         tabletRightPort = s.rightUdpPort
         softStallMs = s.softStallMs
         hardStallMs = s.hardStallMs
+
         discovery = CameraNsdDiscovery(this, object : CameraNsdDiscovery.Callback {
-            @RequiresPermission(android.Manifest.permission.ACCESS_NETWORK_STATE)
             override fun onCameraFound(info: CameraServiceInfo) {
                 runOnUiThread {
                     when {
@@ -108,7 +105,7 @@ class MonitorActivity : AppCompatActivity() {
                             maybeStartLeft()
                         }
 
-                        rightSender == null && info.name != leftSender?.name -> {
+                        rightSender == null && !sameEndpoint(leftSender, info) -> {
                             rightSender = info
                             rightControl = SenderControlClient(info.host, info.port)
                             maybeStartRight()
@@ -118,31 +115,62 @@ class MonitorActivity : AppCompatActivity() {
             }
 
             override fun onCameraLost(name: String) {
-                if (leftSender?.name == name) {
-                    leftPlayer?.stop()
-                    leftPlayer = null
-                    leftSender = null
-                    leftControl = null
-                }
-                if (rightSender?.name == name) {
-                    rightPlayer?.stop()
-                    rightPlayer = null
-                    rightSender = null
-                    rightControl = null
+                runOnUiThread {
+                    if (leftSender?.name == name) {
+                        leftPlayer?.stop()
+                        leftPlayer = null
+                        leftSender = null
+                        leftControl = null
+                    }
+
+                    if (rightSender?.name == name) {
+                        rightPlayer?.stop()
+                        rightPlayer = null
+                        rightSender = null
+                        rightControl = null
+                    }
                 }
             }
         })
-
-        discovery.start()
     }
 
-    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
+    override fun onStart() {
+        super.onStart()
+        discovery.start()
+
+        // If we came back from Home and still know the cameras, try again immediately.
+        maybeStartLeft()
+        maybeStartRight()
+    }
+
+    override fun onStop() {
+        stopMonitoringSession()
+        super.onStop()
+    }
+
+    private fun stopMonitoringSession() {
+        discovery.stop()
+
+        val left = leftControl
+        val right = rightControl
+
+        leftPlayer?.stop()
+        rightPlayer?.stop()
+        leftPlayer = null
+        rightPlayer = null
+
+        CoroutineScope(Dispatchers.IO).launch {
+            runCatching { left?.stopStream() }
+            runCatching { right?.stopStream() }
+        }
+    }
+
     private fun maybeStartLeft() {
-        val sender = leftSender ?: return
         if (!leftSurfaceReady || leftPlayer != null) return
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
         val control = leftControl ?: return
+
         leftPlayer = H264UdpPlayer(
             surface = leftSurface.holder.surface,
             port = tabletLeftPort,
@@ -155,18 +183,18 @@ class MonitorActivity : AppCompatActivity() {
                 control.startStream(tabletIp, tabletLeftPort)
             }
         ).also { it.start() }
+
         lifecycleScope.launch {
-            control.startStream(tabletIp, tabletLeftPort)
+            runCatching { control.startStream(tabletIp, tabletLeftPort) }
         }
     }
 
-    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun maybeStartRight() {
-        val sender = rightSender ?: return
         if (!rightSurfaceReady || rightPlayer != null) return
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
         val control = rightControl ?: return
+
         rightPlayer = H264UdpPlayer(
             surface = rightSurface.holder.surface,
             port = tabletRightPort,
@@ -181,26 +209,12 @@ class MonitorActivity : AppCompatActivity() {
         ).also { it.start() }
 
         lifecycleScope.launch {
-            control.startStream(tabletIp, tabletRightPort)
+            runCatching { control.startStream(tabletIp, tabletRightPort) }
         }
     }
 
-    override fun onDestroy() {
-        discovery.stop()
-        leftPlayer?.stop()
-        rightPlayer?.stop()
-
-        CoroutineScope(Dispatchers.IO).launch {
-            try {
-                leftControl?.stopStream()
-            } catch (_: Exception) {
-            }
-            try {
-                rightControl?.stopStream()
-            } catch (_: Exception) {
-            }
-        }
-
-        super.onDestroy()
+    private fun sameEndpoint(a: CameraServiceInfo?, b: CameraServiceInfo): Boolean {
+        if (a == null) return false
+        return a.host.hostAddress == b.host.hostAddress && a.port == b.port
     }
 }

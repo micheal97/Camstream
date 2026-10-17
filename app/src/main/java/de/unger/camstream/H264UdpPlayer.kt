@@ -48,22 +48,23 @@ class H264UdpPlayer(
 
     private var receiveJob: Job? = null
     private var watchdogJob: Job? = null
-
+    private var released = false
     fun start() {
-        if (running) return
+        if (running || released) return
         running = true
 
-
         openSocket()
-
-        lastPacketAtMs = SystemClock.elapsedRealtime()
+        lastPacketAtMs = android.os.SystemClock.elapsedRealtime()
         lastRecoveryAtMs = 0L
 
         receiveJob = scope.launch { receiveLoop() }
         watchdogJob = scope.launch { watchdogLoop() }
     }
 
+
     fun stop() {
+        if (released) return
+        released = true
         running = false
 
         receiveJob?.cancel()
@@ -78,6 +79,7 @@ class H264UdpPlayer(
         socket = null
 
         releaseDecoder()
+        depacketizer.reset()
         scope.cancel()
         dispatcher.close()
     }
