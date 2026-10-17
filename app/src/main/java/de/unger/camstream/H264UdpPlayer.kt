@@ -68,6 +68,8 @@ class H264UdpPlayer(
 
         receiveJob?.cancel()
         watchdogJob?.cancel()
+        receiveJob = null
+        watchdogJob = null
 
         try {
             socket?.close()
@@ -76,7 +78,6 @@ class H264UdpPlayer(
         socket = null
 
         releaseDecoder()
-
         scope.cancel()
         dispatcher.close()
     }
