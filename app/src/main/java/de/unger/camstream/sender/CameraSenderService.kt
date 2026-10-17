@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import androidx.annotation.RequiresApi
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import de.unger.camstream.settings.SettingsStore
@@ -29,6 +30,8 @@ class CameraSenderService : Service() {
     private lateinit var settingsStore: SettingsStore
     private lateinit var networkWatcher: de.unger.camstream.net.AppNetworkWatcher
     private lateinit var publishedServiceName: String
+
+    @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate() {
         super.onCreate()
 
@@ -162,16 +165,13 @@ class CameraSenderService : Service() {
         nm.notify(NOTIFICATION_ID, buildNotification(text))
     }
 
+    @RequiresApi(Build.VERSION_CODES.R)
     private fun startForegroundCompat(notification: Notification) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-            )
-        } else {
-            startForeground(NOTIFICATION_ID, notification)
-        }
+        startForeground(
+            NOTIFICATION_ID,
+            notification,
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+        )
     }
 
     private fun createNotificationChannel() {

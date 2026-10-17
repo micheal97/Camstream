@@ -108,14 +108,16 @@ class MonitorActivity : AppCompatActivity() {
             @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun onCameraFound(info: CameraServiceInfo) {
                 runOnUiThread {
+                    val name = info.name.lowercase()
+
                     when {
-                        leftSender == null -> {
+                        "left" in name && leftSender == null -> {
                             leftSender = info
                             leftControl = SenderControlClient(info.host, info.port)
                             maybeStartLeft()
                         }
 
-                        rightSender == null && !sameEndpoint(leftSender, info) -> {
+                        "right" in name && rightSender == null -> {
                             rightSender = info
                             rightControl = SenderControlClient(info.host, info.port)
                             maybeStartRight()
@@ -123,6 +125,7 @@ class MonitorActivity : AppCompatActivity() {
                     }
                 }
             }
+
 
             override fun onCameraLost(name: String) {
                 runOnUiThread {
