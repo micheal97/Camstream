@@ -24,6 +24,15 @@ class SenderControlClient(
     suspend fun ping(): String? =
         send("PING")
 
+    suspend fun irOn(): String? =
+        send("IR ON")
+
+    suspend fun irOff(): String? =
+        send("IR OFF")
+
+    suspend fun irAuto(): String? =
+        send("IR AUTO")
+
     private suspend fun send(command: String): String? = withContext(Dispatchers.IO) {
         Socket(host, port).use { socket ->
             socket.soTimeout = 3000

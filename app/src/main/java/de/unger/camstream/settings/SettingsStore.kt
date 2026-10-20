@@ -31,6 +31,9 @@ class SettingsStore(context: Context) {
                 ?: AppSettings().audioRoom,
             audioSampleRate = prefs.getInt(KEY_AUDIO_SAMPLE_RATE, AppSettings().audioSampleRate),
             audioBitrateKbps = prefs.getInt(KEY_AUDIO_BITRATE_KBPS, AppSettings().audioBitrateKbps),
+            irBaseUrl = prefs.getString(KEY_IR_BASE_URL, AppSettings().irBaseUrl)
+                ?: AppSettings().irBaseUrl,
+            irLuxThreshold = prefs.getFloat(KEY_IR_LUX_THRESHOLD, AppSettings().irLuxThreshold),
         )
     }
 
@@ -50,6 +53,8 @@ class SettingsStore(context: Context) {
             .putString(KEY_AUDIO_ROOM, settings.audioRoom)
             .putInt(KEY_AUDIO_SAMPLE_RATE, settings.audioSampleRate)
             .putInt(KEY_AUDIO_BITRATE_KBPS, settings.audioBitrateKbps)
+            .putString(KEY_IR_BASE_URL, settings.irBaseUrl)
+            .putFloat(KEY_IR_LUX_THRESHOLD, settings.irLuxThreshold)
             .apply()
     }
 
@@ -71,5 +76,7 @@ class SettingsStore(context: Context) {
         private const val KEY_AUDIO_ROOM = "audio_room"
         private const val KEY_AUDIO_SAMPLE_RATE = "audio_sample_rate"
         private const val KEY_AUDIO_BITRATE_KBPS = "audio_bitrate_kbps"
+        private const val KEY_IR_BASE_URL = "ir_base_url"
+        private const val KEY_IR_LUX_THRESHOLD = "ir_lux_threshold"
     }
 }

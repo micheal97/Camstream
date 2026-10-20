@@ -18,9 +18,10 @@ class SenderControlServer(
     private val callback: Callback
 ) : Closeable {
     interface Callback {
-        fun onStartStream(targetHost: String, videoPort: Int)
+        fun onStartStream(targetHost: String, targetPort: Int)
         fun onStopStream()
         fun onRequestKeyframe()
+        fun onSetIrMode(mode: de.unger.camstream.ir.IrMode)
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -74,6 +75,16 @@ class SenderControlServer(
 
                     "PING" -> {
                         writer.println("PONG")
+                    }
+
+                    "IR" -> {
+                        when (parts.getOrNull(1)?.uppercase()) {
+                            "ON" -> callback.onSetIrMode(de.unger.camstream.ir.IrMode.ON)
+                            "OFF" -> callback.onSetIrMode(de.unger.camstream.ir.IrMode.OFF)
+                            "AUTO" -> callback.onSetIrMode(de.unger.camstream.ir.IrMode.AUTO)
+                            else -> error("missing ir mode")
+                        }
+                        writer.println("OK")
                     }
 
                     else -> writer.println("ERR unknown-command")

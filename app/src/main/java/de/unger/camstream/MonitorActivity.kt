@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.WindowManager
+import android.widget.Button
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
@@ -46,6 +47,10 @@ class MonitorActivity : AppCompatActivity() {
 
     private var audioServerUrl: String = ""
     private var audioRoom: String = "left-audio"
+    private lateinit var btnIrOff: Button
+    private lateinit var btnIrAuto: Button
+    private lateinit var btnIrOn: Button
+
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,8 +60,31 @@ class MonitorActivity : AppCompatActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         leftSurface = findViewById(R.id.leftSurface)
-        rightSurface = findViewById(R.id.rightSurface)
+        //TODO: rightSurface = findViewById(R.id.rightSurface)
+        btnIrOff = findViewById(R.id.btnIrOff)
+        btnIrAuto = findViewById(R.id.btnIrAuto)
+        btnIrOn = findViewById(R.id.btnIrOn)
 
+        btnIrOff.setOnClickListener {
+            val control = leftControl ?: return@setOnClickListener
+            lifecycleScope.launch {
+                runCatching { control.irOff() }
+            }
+        }
+
+        btnIrAuto.setOnClickListener {
+            val control = leftControl ?: return@setOnClickListener
+            lifecycleScope.launch {
+                runCatching { control.irAuto() }
+            }
+        }
+
+        btnIrOn.setOnClickListener {
+            val control = leftControl ?: return@setOnClickListener
+            lifecycleScope.launch {
+                runCatching { control.irOn() }
+            }
+        }
         leftSurface.holder.addCallback(object : SurfaceHolder.Callback {
             @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun surfaceCreated(holder: SurfaceHolder) {

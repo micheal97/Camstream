@@ -15,6 +15,8 @@ import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import de.unger.camstream.SenderKeepAliveActivity
 import de.unger.camstream.audio.AacAudioStreamer
+import de.unger.camstream.ir.IrController
+import de.unger.camstream.ir.IrMode
 import de.unger.camstream.settings.SettingsStore
 
 class CameraSenderService : Service() {
@@ -31,7 +33,7 @@ class CameraSenderService : Service() {
     private lateinit var controlServer: SenderControlServer
     private lateinit var nsdPublisher: CameraNsdPublisher
     private lateinit var settingsStore: SettingsStore
-
+    private var irController: IrController? = null
     private var audioStreamer: AacAudioStreamer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
@@ -68,7 +70,13 @@ class CameraSenderService : Service() {
                 bitrate = s.audioBitrateKbps * 1000
             )
         }
-
+        if (s.irBaseUrl.isNotBlank()) {
+            irController = IrController(
+                context = this,
+                baseUrl = s.irBaseUrl,
+                luxThreshold = s.irLuxThreshold
+            )
+        }
         controlServer = SenderControlServer(
             s.controlPort,
             object : SenderControlServer.Callback {
@@ -93,6 +101,10 @@ class CameraSenderService : Service() {
 
                 override fun onRequestKeyframe() {
                     streamer.requestSyncFrame()
+                }
+
+                override fun onSetIrMode(mode: IrMode) {
+                    irController?.setMode(mode)
                 }
             }
         )
@@ -139,6 +151,10 @@ class CameraSenderService : Service() {
         }
         try {
             streamer.release()
+        } catch (_: Exception) {
+        }
+        try {
+            irController?.release()
         } catch (_: Exception) {
         }
         releaseDeviceLocks()

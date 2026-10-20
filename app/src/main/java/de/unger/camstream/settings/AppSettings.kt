@@ -22,4 +22,6 @@ data class AppSettings(
     val audioRoom: String = "left-audio",
     val audioSampleRate: Int = 16000,
     val audioBitrateKbps: Int = 32,
+    val irBaseUrl: String = "http://192.168.1.50",
+    val irLuxThreshold: Float = 10f,
 )
