@@ -4,13 +4,14 @@ import android.Manifest
 import android.os.Bundle
 import android.view.SurfaceHolder
 import android.view.SurfaceView
+import android.view.WindowManager
 import androidx.annotation.RequiresPermission
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import de.unger.camstream.audio.ServerAudioPlayer
 import de.unger.camstream.control.SenderControlClient
 import de.unger.camstream.discovery.CameraNsdDiscovery
 import de.unger.camstream.discovery.CameraServiceInfo
-import de.unger.camstream.net.AppNetworkWatcher
 import de.unger.camstream.net.NetworkUtil
 import de.unger.camstream.settings.SettingsStore
 import kotlinx.coroutines.CoroutineScope
@@ -24,7 +25,7 @@ class MonitorActivity : AppCompatActivity() {
 
     private var leftPlayer: H264UdpPlayer? = null
     private var rightPlayer: H264UdpPlayer? = null
-    private var serverAudioPlayer: de.unger.camstream.audio.ServerAudioPlayer? = null
+    private var serverAudioPlayer: ServerAudioPlayer? = null
 
     private var leftSender: CameraServiceInfo? = null
     private var rightSender: CameraServiceInfo? = null
@@ -37,20 +38,21 @@ class MonitorActivity : AppCompatActivity() {
 
     private lateinit var discovery: CameraNsdDiscovery
     private lateinit var settingsStore: SettingsStore
-    private lateinit var networkWatcher: AppNetworkWatcher
 
     private var tabletLeftPort: Int = 5004
     private var tabletRightPort: Int = 5006
-
     private var softStallMs: Long = 3000L
     private var hardStallMs: Long = 8000L
 
-    private var monitorStarted = false
+    private var audioServerUrl: String = ""
+    private var audioRoom: String = "left-audio"
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_monitor)
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         leftSurface = findViewById(R.id.leftSurface)
         rightSurface = findViewById(R.id.rightSurface)
@@ -101,25 +103,26 @@ class MonitorActivity : AppCompatActivity() {
 
         settingsStore = SettingsStore(this)
         val s = settingsStore.load()
+
         tabletLeftPort = s.leftUdpPort
         tabletRightPort = s.rightUdpPort
         softStallMs = s.softStallMs
         hardStallMs = s.hardStallMs
+        audioServerUrl = s.audioServerUrl
+        audioRoom = s.audioRoom
 
         discovery = CameraNsdDiscovery(this, object : CameraNsdDiscovery.Callback {
             @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
             override fun onCameraFound(info: CameraServiceInfo) {
                 runOnUiThread {
-                    val name = info.name.lowercase()
-
                     when {
-                        "left" in name && leftSender == null -> {
+                        leftSender == null -> {
                             leftSender = info
                             leftControl = SenderControlClient(info.host, info.port)
                             maybeStartLeft()
                         }
 
-                        "right" in name && rightSender == null -> {
+                        rightSender == null && !sameEndpoint(leftSender, info) -> {
                             rightSender = info
                             rightControl = SenderControlClient(info.host, info.port)
                             maybeStartRight()
@@ -127,7 +130,6 @@ class MonitorActivity : AppCompatActivity() {
                     }
                 }
             }
-
 
             override fun onCameraLost(name: String) {
                 runOnUiThread {
@@ -147,60 +149,34 @@ class MonitorActivity : AppCompatActivity() {
                 }
             }
         })
-
-        networkWatcher = AppNetworkWatcher(this, object : AppNetworkWatcher.Callback {
-            override fun onNetworkLost() {
-                runOnUiThread {
-                    handleNetworkLost()
-                }
-            }
-
-            @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
-            override fun onNetworkChanged() {
-                runOnUiThread {
-                    handleNetworkChanged()
-                }
-            }
-        })
-        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
-    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     override fun onStart() {
         super.onStart()
-        monitorStarted = true
-        networkWatcher.start()
-        restartDiscoveryAndReconnect()
-    }
 
-    override fun onStop() {
-        monitorStarted = false
-        networkWatcher.stop()
-        stopMonitoringSession(clearSenders = false)
-        super.onStop()
-    }
-
-    private fun handleNetworkLost() {
-        stopMonitoringSession(clearSenders = true)
-    }
-
-    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
-    private fun handleNetworkChanged() {
-        if (!monitorStarted) return
-        restartDiscoveryAndReconnect()
-    }
-
-    @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
-    private fun restartDiscoveryAndReconnect() {
-        stopMonitoringSession(clearSenders = true)
         discovery.start()
 
-        // If discovery callback already knows a sender quickly, these will start.
+        if (serverAudioPlayer == null && audioServerUrl.isNotBlank()) {
+            serverAudioPlayer = ServerAudioPlayer(
+                serverUrl = audioServerUrl,
+                room = audioRoom
+            ).also { it.start() }
+        }
+
         maybeStartLeft()
         maybeStartRight()
     }
 
-    private fun stopMonitoringSession(clearSenders: Boolean) {
+    override fun onStop() {
+        stopMonitoringSession()
+
+        serverAudioPlayer?.release()
+        serverAudioPlayer = null
+
+        super.onStop()
+    }
+
+    private fun stopMonitoringSession() {
         discovery.stop()
 
         val left = leftControl
@@ -210,33 +186,24 @@ class MonitorActivity : AppCompatActivity() {
         rightPlayer?.stop()
         leftPlayer = null
         rightPlayer = null
-        serverAudioPlayer?.release()
-        serverAudioPlayer = null
+
         CoroutineScope(Dispatchers.IO).launch {
             runCatching { left?.stopStream() }
             runCatching { right?.stopStream() }
         }
 
-        if (clearSenders) {
-            leftSender = null
-            rightSender = null
-            leftControl = null
-            rightControl = null
-        }
+        leftSender = null
+        rightSender = null
+        leftControl = null
+        rightControl = null
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun maybeStartLeft() {
-        if (!monitorStarted) return
         if (!leftSurfaceReady || leftPlayer != null) return
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
         val control = leftControl ?: return
-        val s = settingsStore.load()
-        serverAudioPlayer = de.unger.camstream.audio.ServerAudioPlayer(
-            serverUrl = s.audioServerUrl,
-            room = "left-audio"
-        ).also { it.start() }
 
         leftPlayer = H264UdpPlayer(
             surface = leftSurface.holder.surface,
@@ -247,23 +214,22 @@ class MonitorActivity : AppCompatActivity() {
                 control.requestKeyframe()
             },
             onHardStall = {
-                control.startStream(tabletIp, tabletLeftPort, tabletLeftAudioPort)
+                control.startStream(tabletIp, tabletLeftPort)
             }
         ).also { it.start() }
 
         lifecycleScope.launch {
-            runCatching { control.startStream(tabletIp, tabletLeftPort, tabletLeftAudioPort) }
+            runCatching { control.startStream(tabletIp, tabletLeftPort) }
         }
     }
 
     @RequiresPermission(Manifest.permission.ACCESS_NETWORK_STATE)
     private fun maybeStartRight() {
-        if (!monitorStarted) return
         if (!rightSurfaceReady || rightPlayer != null) return
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
         val control = rightControl ?: return
-        rightAudioPlayer = PcmAudioPlayer(tabletRightAudioPort).also { it.start() }
+
         rightPlayer = H264UdpPlayer(
             surface = rightSurface.holder.surface,
             port = tabletRightPort,
@@ -273,12 +239,12 @@ class MonitorActivity : AppCompatActivity() {
                 control.requestKeyframe()
             },
             onHardStall = {
-                control.startStream(tabletIp, tabletRightPort, tabletRightAudioPort)
+                control.startStream(tabletIp, tabletRightPort)
             }
         ).also { it.start() }
 
         lifecycleScope.launch {
-            runCatching { control.startStream(tabletIp, tabletRightPort, tabletRightAudioPort) }
+            runCatching { control.startStream(tabletIp, tabletRightPort) }
         }
     }
 

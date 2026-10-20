@@ -1,5 +1,6 @@
 package de.unger.camstream.audio
 
+import android.util.Base64
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
@@ -28,7 +29,7 @@ class AudioRelayClient(
     }
 
     suspend fun sendConfig(sampleRate: Int, channels: Int, csd0: ByteArray) {
-        val base64 = android.util.Base64.encodeToString(csd0, android.util.Base64.NO_WRAP)
+        val base64 = Base64.encodeToString(csd0, Base64.NO_WRAP)
         session?.send(Frame.Text("CFG $sampleRate $channels $base64"))
     }
 
@@ -42,5 +43,12 @@ class AudioRelayClient(
         } catch (_: Exception) {
         }
         session = null
+    }
+
+    fun release() {
+        try {
+            client.close()
+        } catch (_: Exception) {
+        }
     }
 }

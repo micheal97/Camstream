@@ -6,6 +6,7 @@ import android.media.AudioManager
 import android.media.AudioTrack
 import android.media.MediaCodec
 import android.media.MediaFormat
+import android.util.Base64
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
 import io.ktor.client.plugins.websocket.WebSockets
@@ -18,8 +19,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.nio.ByteBuffer
+import kotlin.time.Duration.Companion.milliseconds
 
 class ServerAudioPlayer(
     private val serverUrl: String,
@@ -30,7 +34,6 @@ class ServerAudioPlayer(
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     private var job: Job? = null
     private var decoder: MediaCodec? = null
     private var track: AudioTrack? = null
@@ -43,13 +46,19 @@ class ServerAudioPlayer(
         running = true
 
         job = scope.launch {
-            client.webSocket("$serverUrl/audio/$room/recv") {
-                for (frame in incoming) {
-                    when (frame) {
-                        is Frame.Text -> handleConfig(frame.readText())
-                        is Frame.Binary -> handleAac(frame.readBytes())
-                        else -> Unit
+            while (running && isActive) {
+                try {
+                    client.webSocket("$serverUrl/audio/$room/recv") {
+                        for (frame in incoming) {
+                            when (frame) {
+                                is Frame.Text -> handleConfig(frame.readText())
+                                is Frame.Binary -> handleAac(frame.readBytes())
+                                else -> Unit
+                            }
+                        }
                     }
+                } catch (_: Exception) {
+                    delay(1000.milliseconds)
                 }
             }
         }
@@ -65,6 +74,10 @@ class ServerAudioPlayer(
 
     fun release() {
         stop()
+        try {
+            client.close()
+        } catch (_: Exception) {
+        }
         scope.cancel()
     }
 
@@ -75,7 +88,7 @@ class ServerAudioPlayer(
 
         val sampleRate = parts[1].toIntOrNull() ?: return
         val channels = parts[2].toIntOrNull() ?: return
-        val csd0 = android.util.Base64.decode(parts[3], android.util.Base64.NO_WRAP)
+        val csd0 = Base64.decode(parts[3], Base64.NO_WRAP)
 
         releaseDecoder()
         releaseTrack()

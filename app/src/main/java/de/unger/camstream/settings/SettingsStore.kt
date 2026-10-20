@@ -21,11 +21,16 @@ class SettingsStore(context: Context) {
 
             leftUdpPort = prefs.getInt(KEY_LEFT_UDP_PORT, AppSettings().leftUdpPort),
             rightUdpPort = prefs.getInt(KEY_RIGHT_UDP_PORT, AppSettings().rightUdpPort),
-            leftAudioPort = prefs.getInt(KEY_LEFT_AUDIO_PORT, AppSettings().leftAudioPort),
-            rightAudioPort = prefs.getInt(KEY_RIGHT_AUDIO_PORT, AppSettings().rightAudioPort),
 
             softStallMs = prefs.getLong(KEY_SOFT_STALL_MS, AppSettings().softStallMs),
             hardStallMs = prefs.getLong(KEY_HARD_STALL_MS, AppSettings().hardStallMs),
+
+            audioServerUrl = prefs.getString(KEY_AUDIO_SERVER_URL, AppSettings().audioServerUrl)
+                ?: AppSettings().audioServerUrl,
+            audioRoom = prefs.getString(KEY_AUDIO_ROOM, AppSettings().audioRoom)
+                ?: AppSettings().audioRoom,
+            audioSampleRate = prefs.getInt(KEY_AUDIO_SAMPLE_RATE, AppSettings().audioSampleRate),
+            audioBitrateKbps = prefs.getInt(KEY_AUDIO_BITRATE_KBPS, AppSettings().audioBitrateKbps),
         )
     }
 
@@ -39,10 +44,12 @@ class SettingsStore(context: Context) {
             .putInt(KEY_BITRATE_KBPS, settings.bitrateKbps)
             .putInt(KEY_LEFT_UDP_PORT, settings.leftUdpPort)
             .putInt(KEY_RIGHT_UDP_PORT, settings.rightUdpPort)
-            .putInt(KEY_LEFT_AUDIO_PORT, settings.leftAudioPort)
-            .putInt(KEY_RIGHT_AUDIO_PORT, settings.rightAudioPort)
             .putLong(KEY_SOFT_STALL_MS, settings.softStallMs)
             .putLong(KEY_HARD_STALL_MS, settings.hardStallMs)
+            .putString(KEY_AUDIO_SERVER_URL, settings.audioServerUrl)
+            .putString(KEY_AUDIO_ROOM, settings.audioRoom)
+            .putInt(KEY_AUDIO_SAMPLE_RATE, settings.audioSampleRate)
+            .putInt(KEY_AUDIO_BITRATE_KBPS, settings.audioBitrateKbps)
             .apply()
     }
 
@@ -57,9 +64,12 @@ class SettingsStore(context: Context) {
 
         private const val KEY_LEFT_UDP_PORT = "left_udp_port"
         private const val KEY_RIGHT_UDP_PORT = "right_udp_port"
-        private const val KEY_LEFT_AUDIO_PORT = "left_audio_port"
-        private const val KEY_RIGHT_AUDIO_PORT = "right_audio_port"
         private const val KEY_SOFT_STALL_MS = "soft_stall_ms"
         private const val KEY_HARD_STALL_MS = "hard_stall_ms"
+
+        private const val KEY_AUDIO_SERVER_URL = "audio_server_url"
+        private const val KEY_AUDIO_ROOM = "audio_room"
+        private const val KEY_AUDIO_SAMPLE_RATE = "audio_sample_rate"
+        private const val KEY_AUDIO_BITRATE_KBPS = "audio_bitrate_kbps"
     }
 }

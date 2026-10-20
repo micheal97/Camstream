@@ -8,7 +8,7 @@ import java.net.InetSocketAddress
 class H264RtpPacketizer(
     host: String,
     port: Int,
-    private val fps: Int = 5,
+    private val fps: Int = 2,
     private val mtu: Int = 1200
 ) : Closeable {
 

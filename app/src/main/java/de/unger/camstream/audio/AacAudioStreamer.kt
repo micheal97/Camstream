@@ -23,10 +23,9 @@ class AacAudioStreamer(
     private val room: String = "left-audio",
     private val sampleRate: Int = 16000,
     private val channelCount: Int = 1,
-    private val bitrate: Int = 32000
+    private val bitrate: Int = 32_000
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     private val relayClient = AudioRelayClient(serverUrl)
 
     private var record: AudioRecord? = null
@@ -42,16 +41,21 @@ class AacAudioStreamer(
         running.set(true)
 
         scope.launch {
-            relayClient.connectSender(room)
-            startEncoder()
-            startRecorder()
-            startCaptureLoop()
-            startDrainLoop()
+            runCatching {
+                relayClient.connectSender(room)
+                startEncoder()
+                startRecorder()
+                startCaptureLoop()
+                startDrainLoop()
+            }.onFailure {
+                stop()
+            }
         }
     }
 
     fun stop() {
         running.set(false)
+
         captureJob?.cancel()
         drainJob?.cancel()
         captureJob = null
@@ -78,12 +82,13 @@ class AacAudioStreamer(
         encoder = null
 
         scope.launch {
-            relayClient.close()
+            runCatching { relayClient.close() }
         }
     }
 
     fun release() {
         stop()
+        relayClient.release()
         scope.cancel()
     }
 
@@ -95,7 +100,7 @@ class AacAudioStreamer(
         ).apply {
             setInteger(MediaFormat.KEY_AAC_PROFILE, MediaCodecInfo.CodecProfileLevel.AACObjectLC)
             setInteger(MediaFormat.KEY_BIT_RATE, bitrate)
-            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 2048)
+            setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 4096)
         }
 
         encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC).apply {
@@ -108,8 +113,8 @@ class AacAudioStreamer(
     private fun startRecorder() {
         val channelMask = AudioFormat.CHANNEL_IN_MONO
         val pcmFormat = AudioFormat.ENCODING_PCM_16BIT
-        val minBuf = AudioRecord.getMinBufferSize(sampleRate, channelMask, pcmFormat)
-        val bufferSize = maxOf(minBuf, 4096)
+        val minBuffer = AudioRecord.getMinBufferSize(sampleRate, channelMask, pcmFormat)
+        val bufferSize = maxOf(minBuffer, 4096)
 
         record = AudioRecord(
             MediaRecorder.AudioSource.MIC,
@@ -156,23 +161,29 @@ class AacAudioStreamer(
                     MediaCodec.INFO_TRY_AGAIN_LATER -> Unit
 
                     MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                        val fmt = codec.outputFormat
-                        val csd0 = fmt.getByteBuffer("csd-0")?.toByteArray()
+                        val csd0 = codec.outputFormat.getByteBuffer("csd-0")?.toByteArray()
                         if (csd0 != null) {
-                            relayClient.sendConfig(sampleRate, channelCount, csd0)
+                            runCatching {
+                                relayClient.sendConfig(sampleRate, channelCount, csd0)
+                            }
                         }
                     }
 
                     else -> if (index >= 0) {
                         val out = codec.getOutputBuffer(index)?.duplicate()
-                        if (out != null && info.size > 0 &&
+                        if (out != null &&
+                            info.size > 0 &&
                             (info.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG) == 0
                         ) {
                             out.position(info.offset)
                             out.limit(info.offset + info.size)
+
                             val data = ByteArray(info.size)
                             out.get(data)
-                            relayClient.sendAacFrame(data)
+
+                            runCatching {
+                                relayClient.sendAacFrame(data)
+                            }
                         }
                         codec.releaseOutputBuffer(index, false)
                     }

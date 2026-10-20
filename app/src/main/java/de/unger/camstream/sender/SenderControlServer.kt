@@ -18,7 +18,7 @@ class SenderControlServer(
     private val callback: Callback
 ) : Closeable {
     interface Callback {
-        fun onStartStream(targetHost: String, videoPort: Int, audioPort: Int)
+        fun onStartStream(targetHost: String, videoPort: Int)
         fun onStopStream()
         fun onRequestKeyframe()
     }
@@ -58,9 +58,7 @@ class SenderControlServer(
                         val host = parts.getOrNull(1) ?: error("missing host")
                         val videoPort =
                             parts.getOrNull(2)?.toIntOrNull() ?: error("missing video port")
-                        val audioPort =
-                            parts.getOrNull(3)?.toIntOrNull() ?: error("missing audio port")
-                        callback.onStartStream(host, videoPort, audioPort)
+                        callback.onStartStream(host, videoPort)
                         writer.println("OK")
                     }
 

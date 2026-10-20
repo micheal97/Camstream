@@ -32,7 +32,7 @@ class CameraStreamer(
     context: Context,
     private val width: Int = 640,
     private val height: Int = 480,
-    private val fps: Int = 5,
+    private val fps: Int = 2,
     private val bitrate: Int = 500_000
 ) {
     private val appContext = context.applicationContext

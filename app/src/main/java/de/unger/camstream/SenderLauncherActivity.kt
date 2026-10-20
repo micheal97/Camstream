@@ -12,16 +12,14 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import de.unger.camstream.sender.CameraSenderService
+import de.unger.camstream.settings.SettingsStore
 
 class SenderLauncherActivity : AppCompatActivity() {
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { result ->
-        val cameraGranted = result[Manifest.permission.CAMERA] == true
-        if (cameraGranted) {
-            startSenderService()
-        }
+    ) {
+        startSenderService()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -44,6 +42,7 @@ class SenderLauncherActivity : AppCompatActivity() {
                 stopService(intent)
             }
         }
+
         val settings = Button(this).apply {
             text = "Settings"
             setOnClickListener {
@@ -67,18 +66,24 @@ class SenderLauncherActivity : AppCompatActivity() {
 
     private fun ensurePermissionsAndStart() {
         val needed = mutableListOf<String>()
+        val settings = SettingsStore(this).load()
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
             != PackageManager.PERMISSION_GRANTED
         ) {
             needed += Manifest.permission.CAMERA
         }
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+
+        val shouldSendAudio =
+            settings.senderLabel.contains("left", ignoreCase = true) &&
+                    settings.audioServerUrl.isNotBlank()
+
+        if (shouldSendAudio &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
             != PackageManager.PERMISSION_GRANTED
         ) {
             needed += Manifest.permission.RECORD_AUDIO
         }
-
 
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)

@@ -5,10 +5,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.BroadcastReceiver
-import android.content.Context
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.ServiceInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -17,6 +14,7 @@ import android.os.PowerManager
 import androidx.annotation.RequiresPermission
 import androidx.core.app.NotificationCompat
 import de.unger.camstream.SenderKeepAliveActivity
+import de.unger.camstream.audio.AacAudioStreamer
 import de.unger.camstream.settings.SettingsStore
 
 class CameraSenderService : Service() {
@@ -30,41 +28,17 @@ class CameraSenderService : Service() {
     }
 
     private lateinit var streamer: CameraStreamer
-    private var audioStreamer: de.unger.camstream.audio.AacAudioStreamer? = null
     private lateinit var controlServer: SenderControlServer
     private lateinit var nsdPublisher: CameraNsdPublisher
     private lateinit var settingsStore: SettingsStore
 
+    private var audioStreamer: AacAudioStreamer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var wifiLock: WifiManager.WifiLock? = null
 
-    @Volatile
-    private var lastTargetHost: String? = null
-
-    @Volatile
-    private var lastTargetPort: Int? = null
-
-    private val unlockReceiver = object : BroadcastReceiver() {
-        @RequiresPermission(Manifest.permission.CAMERA)
-        override fun onReceive(context: Context?, intent: Intent?) {
-            val host = lastTargetHost ?: return
-            val port = lastTargetPort ?: return
-
-            try {
-                showKeepAliveActivity()
-            } catch (_: Exception) {
-            }
-
-            try {
-                streamer.start(host, port)
-                updateNotification("Streaming to $host:$port")
-            } catch (_: Exception) {
-            }
-        }
-    }
-
     override fun onCreate() {
         super.onCreate()
+
         settingsStore = SettingsStore(this)
         val s = settingsStore.load()
 
@@ -72,7 +46,6 @@ class CameraSenderService : Service() {
         startForegroundCompat(buildNotification("Idle - waiting for tablet"))
 
         acquireDeviceLocks()
-        registerUnlockReceiver()
         showKeepAliveActivity()
 
         streamer = CameraStreamer(
@@ -82,32 +55,47 @@ class CameraSenderService : Service() {
             fps = s.fps,
             bitrate = s.bitrateKbps * 1000
         )
-        if (s.sendAudio) {
-            audioStreamer = de.unger.camstream.audio.AacAudioStreamer(
+
+        val shouldSendAudio =
+            s.senderLabel.contains("left", ignoreCase = true) &&
+                    s.audioServerUrl.isNotBlank()
+
+        if (shouldSendAudio) {
+            audioStreamer = AacAudioStreamer(
                 serverUrl = s.audioServerUrl,
-                room = "left-audio",
-                sampleRate = 16000,
-                bitrate = 32000
+                room = s.audioRoom,
+                sampleRate = s.audioSampleRate,
+                bitrate = s.audioBitrateKbps * 1000
             )
         }
-        controlServer = SenderControlServer(s.controlPort, object : SenderControlServer.Callback {
-            @RequiresPermission(allOf = [Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO])
-            override fun onStartStream(targetHost: String, targetPort: Int) {
-                streamer.start(targetHost, targetPort)
-                audioStreamer?.start()
-                updateNotification("Streaming to $targetHost:$targetPort")
-            }
 
-            override fun onStopStream() {
-                streamer.stop()
-                audioStreamer?.stop()
-                updateNotification("Idle - waiting for tablet")
-            }
+        controlServer = SenderControlServer(
+            s.controlPort,
+            object : SenderControlServer.Callback {
+                @RequiresPermission(allOf = [Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO])
+                override fun onStartStream(targetHost: String, targetPort: Int) {
+                    streamer.start(targetHost, targetPort)
+                    audioStreamer?.start()
+                    updateNotification(
+                        if (audioStreamer != null) {
+                            "Streaming AV to $targetHost:$targetPort"
+                        } else {
+                            "Streaming video to $targetHost:$targetPort"
+                        }
+                    )
+                }
 
-            override fun onRequestKeyframe() {
-                streamer.requestSyncFrame()
+                override fun onStopStream() {
+                    streamer.stop()
+                    audioStreamer?.stop()
+                    updateNotification("Idle - waiting for tablet")
+                }
+
+                override fun onRequestKeyframe() {
+                    streamer.requestSyncFrame()
+                }
             }
-        })
+        )
         controlServer.start()
 
         val safeLabel = s.senderLabel
@@ -138,10 +126,6 @@ class CameraSenderService : Service() {
 
     override fun onDestroy() {
         try {
-            unregisterReceiver(unlockReceiver)
-        } catch (_: Exception) {
-        }
-        try {
             nsdPublisher.unregister()
         } catch (_: Exception) {
         }
@@ -150,11 +134,11 @@ class CameraSenderService : Service() {
         } catch (_: Exception) {
         }
         try {
-            streamer.release()
+            audioStreamer?.release()
         } catch (_: Exception) {
         }
         try {
-            audioStreamer?.release()
+            streamer.release()
         } catch (_: Exception) {
         }
         releaseDeviceLocks()
@@ -208,18 +192,6 @@ class CameraSenderService : Service() {
         wifiLock = null
     }
 
-    private fun registerUnlockReceiver() {
-        val filter = IntentFilter().apply {
-            addAction(Intent.ACTION_USER_PRESENT)
-            addAction(Intent.ACTION_SCREEN_ON)
-        }
-
-        if (Build.VERSION.SDK_INT >= 33) {
-            registerReceiver(unlockReceiver, filter, RECEIVER_NOT_EXPORTED)
-        } else {
-            registerReceiver(unlockReceiver, filter)
-        }
-    }
 
     private fun buildNotification(text: String): Notification {
         return NotificationCompat.Builder(this, CHANNEL_ID)
@@ -239,7 +211,8 @@ class CameraSenderService : Service() {
         startForeground(
             NOTIFICATION_ID,
             notification,
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         )
     }
 
