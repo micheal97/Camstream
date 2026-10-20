@@ -30,6 +30,7 @@ class CameraSenderService : Service() {
     }
 
     private lateinit var streamer: CameraStreamer
+    private var audioStreamer: de.unger.camstream.audio.AacAudioStreamer? = null
     private lateinit var controlServer: SenderControlServer
     private lateinit var nsdPublisher: CameraNsdPublisher
     private lateinit var settingsStore: SettingsStore
@@ -64,7 +65,6 @@ class CameraSenderService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-
         settingsStore = SettingsStore(this)
         val s = settingsStore.load()
 
@@ -82,24 +82,25 @@ class CameraSenderService : Service() {
             fps = s.fps,
             bitrate = s.bitrateKbps * 1000
         )
-
+        if (s.sendAudio) {
+            audioStreamer = de.unger.camstream.audio.AacAudioStreamer(
+                serverUrl = s.audioServerUrl,
+                room = "left-audio",
+                sampleRate = 16000,
+                bitrate = 32000
+            )
+        }
         controlServer = SenderControlServer(s.controlPort, object : SenderControlServer.Callback {
-            @RequiresPermission(Manifest.permission.CAMERA)
+            @RequiresPermission(allOf = [Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO])
             override fun onStartStream(targetHost: String, targetPort: Int) {
-                lastTargetHost = targetHost
-                lastTargetPort = targetPort
-
-                showKeepAliveActivity()
-
                 streamer.start(targetHost, targetPort)
+                audioStreamer?.start()
                 updateNotification("Streaming to $targetHost:$targetPort")
             }
 
             override fun onStopStream() {
-                lastTargetHost = null
-                lastTargetPort = null
-
                 streamer.stop()
+                audioStreamer?.stop()
                 updateNotification("Idle - waiting for tablet")
             }
 
@@ -150,6 +151,10 @@ class CameraSenderService : Service() {
         }
         try {
             streamer.release()
+        } catch (_: Exception) {
+        }
+        try {
+            audioStreamer?.release()
         } catch (_: Exception) {
         }
         releaseDeviceLocks()

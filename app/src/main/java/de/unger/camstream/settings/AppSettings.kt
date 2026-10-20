@@ -8,11 +8,16 @@ data class AppSettings(
 
     val width: Int = 640,
     val height: Int = 480,
-    val fps: Int = 15,
+    val fps: Int = 5,
     val bitrateKbps: Int = 300,
 
     val leftUdpPort: Int = 5004,
     val rightUdpPort: Int = 5006,
+    val leftAudioPort: Int = 5014,
+    val rightAudioPort: Int = 5016,
+
     val softStallMs: Long = 3000L,
     val hardStallMs: Long = 8000L,
+    val sendAudio: Boolean = false,
+    val audioServerUrl: String = "ws://82.165.165.63:8080"
 )

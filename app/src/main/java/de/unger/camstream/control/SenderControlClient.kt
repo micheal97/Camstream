@@ -12,8 +12,8 @@ class SenderControlClient(
     private val host: InetAddress,
     private val port: Int
 ) {
-    suspend fun startStream(tabletIp: String, tabletPort: Int): String? =
-        send("START $tabletIp $tabletPort")
+    suspend fun startStream(tabletIp: String, videoPort: Int, audioPort: Int): String? =
+        send("START $tabletIp $videoPort $audioPort")
 
     suspend fun stopStream(): String? =
         send("STOP")

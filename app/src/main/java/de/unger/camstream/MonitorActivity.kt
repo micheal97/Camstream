@@ -24,6 +24,7 @@ class MonitorActivity : AppCompatActivity() {
 
     private var leftPlayer: H264UdpPlayer? = null
     private var rightPlayer: H264UdpPlayer? = null
+    private var serverAudioPlayer: de.unger.camstream.audio.ServerAudioPlayer? = null
 
     private var leftSender: CameraServiceInfo? = null
     private var rightSender: CameraServiceInfo? = null
@@ -40,6 +41,7 @@ class MonitorActivity : AppCompatActivity() {
 
     private var tabletLeftPort: Int = 5004
     private var tabletRightPort: Int = 5006
+
     private var softStallMs: Long = 3000L
     private var hardStallMs: Long = 8000L
 
@@ -208,7 +210,8 @@ class MonitorActivity : AppCompatActivity() {
         rightPlayer?.stop()
         leftPlayer = null
         rightPlayer = null
-
+        serverAudioPlayer?.release()
+        serverAudioPlayer = null
         CoroutineScope(Dispatchers.IO).launch {
             runCatching { left?.stopStream() }
             runCatching { right?.stopStream() }
@@ -229,6 +232,11 @@ class MonitorActivity : AppCompatActivity() {
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
         val control = leftControl ?: return
+        val s = settingsStore.load()
+        serverAudioPlayer = de.unger.camstream.audio.ServerAudioPlayer(
+            serverUrl = s.audioServerUrl,
+            room = "left-audio"
+        ).also { it.start() }
 
         leftPlayer = H264UdpPlayer(
             surface = leftSurface.holder.surface,
@@ -239,12 +247,12 @@ class MonitorActivity : AppCompatActivity() {
                 control.requestKeyframe()
             },
             onHardStall = {
-                control.startStream(tabletIp, tabletLeftPort)
+                control.startStream(tabletIp, tabletLeftPort, tabletLeftAudioPort)
             }
         ).also { it.start() }
 
         lifecycleScope.launch {
-            runCatching { control.startStream(tabletIp, tabletLeftPort) }
+            runCatching { control.startStream(tabletIp, tabletLeftPort, tabletLeftAudioPort) }
         }
     }
 
@@ -255,7 +263,7 @@ class MonitorActivity : AppCompatActivity() {
 
         val tabletIp = NetworkUtil.currentIpv4Address(this) ?: return
         val control = rightControl ?: return
-
+        rightAudioPlayer = PcmAudioPlayer(tabletRightAudioPort).also { it.start() }
         rightPlayer = H264UdpPlayer(
             surface = rightSurface.holder.surface,
             port = tabletRightPort,
@@ -265,12 +273,12 @@ class MonitorActivity : AppCompatActivity() {
                 control.requestKeyframe()
             },
             onHardStall = {
-                control.startStream(tabletIp, tabletRightPort)
+                control.startStream(tabletIp, tabletRightPort, tabletRightAudioPort)
             }
         ).also { it.start() }
 
         lifecycleScope.launch {
-            runCatching { control.startStream(tabletIp, tabletRightPort) }
+            runCatching { control.startStream(tabletIp, tabletRightPort, tabletRightAudioPort) }
         }
     }
 

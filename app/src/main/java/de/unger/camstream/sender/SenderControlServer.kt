@@ -1,6 +1,11 @@
 package de.unger.camstream.sender
 
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.Closeable
 import java.io.InputStreamReader
@@ -12,9 +17,8 @@ class SenderControlServer(
     private val port: Int,
     private val callback: Callback
 ) : Closeable {
-
     interface Callback {
-        fun onStartStream(targetHost: String, targetPort: Int)
+        fun onStartStream(targetHost: String, videoPort: Int, audioPort: Int)
         fun onStopStream()
         fun onRequestKeyframe()
     }
@@ -52,8 +56,11 @@ class SenderControlServer(
                 when (parts.firstOrNull()?.uppercase()) {
                     "START" -> {
                         val host = parts.getOrNull(1) ?: error("missing host")
-                        val port = parts.getOrNull(2)?.toIntOrNull() ?: error("missing port")
-                        callback.onStartStream(host, port)
+                        val videoPort =
+                            parts.getOrNull(2)?.toIntOrNull() ?: error("missing video port")
+                        val audioPort =
+                            parts.getOrNull(3)?.toIntOrNull() ?: error("missing audio port")
+                        callback.onStartStream(host, videoPort, audioPort)
                         writer.println("OK")
                     }
 
@@ -81,7 +88,10 @@ class SenderControlServer(
 
     override fun close() {
         scope.cancel()
-        try { serverSocket?.close() } catch (_: Exception) {}
+        try {
+            serverSocket?.close()
+        } catch (_: Exception) {
+        }
         serverSocket = null
     }
 }

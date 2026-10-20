@@ -33,7 +33,7 @@ class CameraSenderActivity : AppCompatActivity() {
 
     private val width = 640
     private val height = 480
-    private val fps = 15
+    private val fps = 5
     private val bitrate = 500_000
 
     private lateinit var cameraManager: CameraManager

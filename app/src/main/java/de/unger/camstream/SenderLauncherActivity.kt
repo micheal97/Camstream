@@ -73,6 +73,12 @@ class SenderLauncherActivity : AppCompatActivity() {
         ) {
             needed += Manifest.permission.CAMERA
         }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            needed += Manifest.permission.RECORD_AUDIO
+        }
+
 
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
